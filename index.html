@@ -31,14 +31,19 @@
                                 <div class="logo-display" id="homeLogo">
                                     <span class="placeholder">🏠</span>
                                 </div>
-                                <input type="file" id="homeLogoFile" accept="image/*" class="sr-only" capture="environment">
-                                <label for="homeLogoFile" class="btn btn--primary logo-btn">📷 Ajouter Logo</label>
+                                <div class="logo-controls">
+                                    <input type="file" id="homeLogoFile" accept="image/*" class="sr-only" style="display: none;">
+                                    <button type="button" id="homeLogoBtn" class="btn btn--sm btn--outline">🖼️ Choisir depuis Galerie</button>
+                                    <input type="url" id="homeLogoUrl" placeholder="URL du logo" class="form-control logo-url-input">
+                                    <button id="homeLogoUrlBtn" class="btn btn--sm btn--primary">🔗</button>
+                                </div>
                             </div>
-                            <input type="text" id="homeTeam" placeholder="Nom de l'équipe domicile" class="form-control team-input">
+                            <input type="text" id="homeTeam" placeholder="Nom de l'équipe domicile" class="form-control">
                             <div class="score-controls">
-                                <button class="btn btn--lg score-btn" data-team="home" data-action="minus">-</button>
+                                <span>Score:</span>
+                                <button class="btn btn--sm score-btn" data-team="home" data-action="minus">-</button>
                                 <span id="homeScore" class="score">0</span>
-                                <button class="btn btn--lg score-btn" data-team="home" data-action="plus">+</button>
+                                <button class="btn btn--sm score-btn" data-team="home" data-action="plus">+</button>
                             </div>
                         </div>
                     </div>
@@ -49,9 +54,9 @@
                             <div id="matchStatus" class="status status--info">En attente</div>
                         </div>
                         <div class="chrono-controls">
-                            <button id="startBtn" class="btn btn--primary btn--large">▶️ Start</button>
-                            <button id="pauseBtn" class="btn btn--secondary btn--large" disabled>⏸️ Pause</button>
-                            <button id="resetBtn" class="btn btn--outline btn--large">🔄 Reset</button>
+                            <button id="startBtn" class="btn btn--primary">▶️ Start</button>
+                            <button id="pauseBtn" class="btn btn--secondary" disabled>⏸️ Pause</button>
+                            <button id="resetBtn" class="btn btn--outline">🔄 Reset</button>
                         </div>
                     </div>
 
@@ -62,14 +67,19 @@
                                 <div class="logo-display" id="awayLogo">
                                     <span class="placeholder">✈️</span>
                                 </div>
-                                <input type="file" id="awayLogoFile" accept="image/*" class="sr-only" capture="environment">
-                                <label for="awayLogoFile" class="btn btn--primary logo-btn">📷 Ajouter Logo</label>
+                                <div class="logo-controls">
+                                    <input type="file" id="awayLogoFile" accept="image/*" class="sr-only" style="display: none;">
+                                    <button type="button" id="awayLogoBtn" class="btn btn--sm btn--outline">🖼️ Choisir depuis Galerie</button>
+                                    <input type="url" id="awayLogoUrl" placeholder="URL du logo" class="form-control logo-url-input">
+                                    <button id="awayLogoUrlBtn" class="btn btn--sm btn--primary">🔗</button>
+                                </div>
                             </div>
-                            <input type="text" id="awayTeam" placeholder="Nom de l'équipe visiteur" class="form-control team-input">
+                            <input type="text" id="awayTeam" placeholder="Nom de l'équipe visiteur" class="form-control">
                             <div class="score-controls">
-                                <button class="btn btn--lg score-btn" data-team="away" data-action="minus">-</button>
+                                <span>Score:</span>
+                                <button class="btn btn--sm score-btn" data-team="away" data-action="minus">-</button>
                                 <span id="awayScore" class="score">0</span>
-                                <button class="btn btn--lg score-btn" data-team="away" data-action="plus">+</button>
+                                <button class="btn btn--sm score-btn" data-team="away" data-action="plus">+</button>
                             </div>
                         </div>
                     </div>
@@ -82,19 +92,19 @@
                         <div class="event-column">
                             <h4>🏠 Domicile</h4>
                             <div class="event-buttons">
-                                <button class="btn btn--lg event-btn" data-team="home" data-event="goal">⚽ But</button>
-                                <button class="btn btn--lg event-btn" data-team="home" data-event="yellow">🟡 Carton</button>
-                                <button class="btn btn--lg event-btn" data-team="home" data-event="red">🟥 Rouge</button>
-                                <button class="btn btn--lg event-btn" data-team="home" data-event="substitution">🔄 Rempl.</button>
+                                <button class="btn btn--sm event-btn" data-team="home" data-event="goal">⚽ But</button>
+                                <button class="btn btn--sm event-btn" data-team="home" data-event="yellow">🟡 Carton</button>
+                                <button class="btn btn--sm event-btn" data-team="home" data-event="red">🟥 Rouge</button>
+                                <button class="btn btn--sm event-btn" data-team="home" data-event="substitution">🔄 Rempl.</button>
                             </div>
                         </div>
                         <div class="event-column">
                             <h4>✈️ Visiteur</h4>
                             <div class="event-buttons">
-                                <button class="btn btn--lg event-btn" data-team="away" data-event="goal">⚽ But</button>
-                                <button class="btn btn--lg event-btn" data-team="away" data-event="yellow">🟡 Carton</button>
-                                <button class="btn btn--lg event-btn" data-team="away" data-event="red">🟥 Rouge</button>
-                                <button class="btn btn--lg event-btn" data-team="away" data-event="substitution">🔄 Rempl.</button>
+                                <button class="btn btn--sm event-btn" data-team="away" data-event="goal">⚽ But</button>
+                                <button class="btn btn--sm event-btn" data-team="away" data-event="yellow">🟡 Carton</button>
+                                <button class="btn btn--sm event-btn" data-team="away" data-event="red">🟥 Rouge</button>
+                                <button class="btn btn--sm event-btn" data-team="away" data-event="substitution">🔄 Rempl.</button>
                             </div>
                         </div>
                     </div>
@@ -108,7 +118,7 @@
             <div id="eventsList" class="events-timeline">
                 <p class="no-events">Aucun événement pour le moment</p>
             </div>
-            <button id="clearTimeline" class="btn btn--outline btn--large">🗑️ Vider Timeline</button>
+            <button id="clearTimeline" class="btn btn--outline">🗑️ Vider Timeline</button>
         </div>
 
         <!-- Tab Content: Export -->
@@ -118,9 +128,9 @@
                 <canvas id="exportCanvas" width="400" height="300"></canvas>
             </div>
             <div class="export-controls">
-                <button id="generateExport" class="btn btn--primary btn--large">🎨 Générer Image</button>
-                <button id="downloadExport" class="btn btn--secondary btn--large" style="display: none;">💾 Télécharger</button>
-                <button id="shareWhatsApp" class="btn btn--success btn--large" style="display: none;">📱 Partager WhatsApp</button>
+                <button id="generateExport" class="btn btn--primary btn--full-width">🎨 Générer Image</button>
+                <button id="downloadExport" class="btn btn--secondary btn--full-width" style="display: none;">💾 Télécharger</button>
+                <button id="shareWhatsApp" class="btn btn--success btn--full-width" style="display: none;">📱 Partager WhatsApp</button>
             </div>
         </div>
     </div>

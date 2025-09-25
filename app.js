@@ -36,7 +36,6 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeLogoUploads();
     initializeExport();
     initializeTimeline();
-    loadLocalData();
 });
 
 // Tab system
@@ -55,69 +54,98 @@ function initializeTabs() {
     });
 }
 
-// Logo upload system - Mobile-only file upload - Fixed version
+// Logo upload system - Gallery only, no camera
 function initializeLogoUploads() {
+    // Home team logo elements
     const homeLogoFile = document.getElementById('homeLogoFile');
+    const homeLogoBtn = document.getElementById('homeLogoBtn');
+    const homeLogoUrl = document.getElementById('homeLogoUrl');
+    const homeLogoUrlBtn = document.getElementById('homeLogoUrlBtn');
     const homeLogoDisplay = document.getElementById('homeLogo');
+
+    // Away team logo elements
     const awayLogoFile = document.getElementById('awayLogoFile');
+    const awayLogoBtn = document.getElementById('awayLogoBtn');
+    const awayLogoUrl = document.getElementById('awayLogoUrl');
+    const awayLogoUrlBtn = document.getElementById('awayLogoUrlBtn');
     const awayLogoDisplay = document.getElementById('awayLogo');
 
-    // Make sure the file inputs are properly set up
-    console.log('Logo inputs found:', homeLogoFile, awayLogoFile);
+    // Button click handlers to trigger file input
+    homeLogoBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        homeLogoFile.click();
+    });
 
-    // Direct event listeners on file inputs
+    awayLogoBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        awayLogoFile.click();
+    });
+
+    // File upload handlers - Gallery only
     homeLogoFile.addEventListener('change', (e) => {
-        console.log('Home logo file changed:', e.target.files);
         if (e.target.files && e.target.files[0]) {
             handleLogoFileUpload(e.target.files[0], 'home', homeLogoDisplay);
         }
     });
 
     awayLogoFile.addEventListener('change', (e) => {
-        console.log('Away logo file changed:', e.target.files);
         if (e.target.files && e.target.files[0]) {
             handleLogoFileUpload(e.target.files[0], 'away', awayLogoDisplay);
         }
     });
 
-    // Also add click handlers to the labels as backup
-    const homeLabel = document.querySelector('label[for="homeLogoFile"]');
-    const awayLabel = document.querySelector('label[for="awayLogoFile"]');
+    // URL button handlers
+    homeLogoUrlBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const url = homeLogoUrl.value.trim();
+        if (url) {
+            handleLogoUrlUpload(url, 'home', homeLogoDisplay);
+        } else {
+            alert('Veuillez entrer une URL valide');
+        }
+    });
 
-    if (homeLabel) {
-        homeLabel.addEventListener('click', (e) => {
-            console.log('Home logo label clicked');
-            e.preventDefault();
-            homeLogoFile.click();
-        });
-    }
+    awayLogoUrlBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const url = awayLogoUrl.value.trim();
+        if (url) {
+            handleLogoUrlUpload(url, 'away', awayLogoDisplay);
+        } else {
+            alert('Veuillez entrer une URL valide');
+        }
+    });
 
-    if (awayLabel) {
-        awayLabel.addEventListener('click', (e) => {
-            console.log('Away logo label clicked');
+    // Enter key for URL inputs
+    homeLogoUrl.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
             e.preventDefault();
-            awayLogoFile.click();
-        });
-    }
+            const url = homeLogoUrl.value.trim();
+            if (url) {
+                handleLogoUrlUpload(url, 'home', homeLogoDisplay);
+            }
+        }
+    });
+
+    awayLogoUrl.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const url = awayLogoUrl.value.trim();
+            if (url) {
+                handleLogoUrlUpload(url, 'away', awayLogoDisplay);
+            }
+        }
+    });
 }
 
 function handleLogoFileUpload(file, team, displayElement) {
-    console.log('Processing logo file:', file.name, 'for team:', team);
-    
     if (!file || !file.type.startsWith('image/')) {
         alert('Veuillez sélectionner un fichier image valide');
         return;
     }
 
-    // Check file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-        alert('L\'image est trop volumineuse. Veuillez choisir une image de moins de 5MB.');
-        return;
-    }
-
     const reader = new FileReader();
     reader.onload = (e) => {
-        processAndDisplayLogo(e.target.result, team, displayElement);
+        createAndDisplayLogo(e.target.result, team, displayElement);
     };
     reader.onerror = () => {
         alert('Erreur lors de la lecture du fichier');
@@ -125,42 +153,60 @@ function handleLogoFileUpload(file, team, displayElement) {
     reader.readAsDataURL(file);
 }
 
-function processAndDisplayLogo(src, team, displayElement) {
+function handleLogoUrlUpload(url, team, displayElement) {
+    if (!url.trim()) {
+        alert('Veuillez entrer une URL valide');
+        return;
+    }
+
+    // Create image element to test URL
+    const img = new Image();
+    
+    img.onload = () => {
+        createAndDisplayLogo(url, team, displayElement);
+    };
+    
+    img.onerror = () => {
+        alert('Impossible de charger l\'image depuis cette URL. Vérifiez que l\'URL est correcte et accessible.');
+    };
+
+    // Handle CORS by trying to load the image
+    img.crossOrigin = 'anonymous';
+    img.src = url;
+}
+
+function createAndDisplayLogo(src, team, displayElement) {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     const img = new Image();
     
     img.onload = () => {
-        // Set canvas size to 80x80 for better mobile display
-        canvas.width = 80;
-        canvas.height = 80;
+        // Set canvas size to 64x64
+        canvas.width = 64;
+        canvas.height = 64;
         
         // Clear canvas with white background
         ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, 80, 80);
+        ctx.fillRect(0, 0, 64, 64);
         
-        // Calculate dimensions to fit image while maintaining aspect ratio
-        const scale = Math.min(80 / img.width, 80 / img.height);
+        // Calculate dimensions to fit image in 64x64 while maintaining aspect ratio
+        const scale = Math.min(64 / img.width, 64 / img.height);
         const width = img.width * scale;
         const height = img.height * scale;
-        const x = (80 - width) / 2;
-        const y = (80 - height) / 2;
+        const x = (64 - width) / 2;
+        const y = (64 - height) / 2;
         
         // Draw the image
         ctx.drawImage(img, x, y, width, height);
         
         // Convert to data URL for storage
-        const dataUrl = canvas.toDataURL('image/png', 0.8);
+        const dataUrl = canvas.toDataURL('image/png');
         
         // Clean up previous blob URL if exists
         if (team === 'home' && matchState.homeLogoBlobUrl) {
-            if (matchState.homeLogoBlobUrl.startsWith('blob:')) {
-                URL.revokeObjectURL(matchState.homeLogoBlobUrl);
-            }
+            URL.revokeObjectURL(matchState.homeLogoBlobUrl);
         } else if (team === 'away' && matchState.awayLogoBlobUrl) {
-            if (matchState.awayLogoBlobUrl.startsWith('blob:')) {
-                URL.revokeObjectURL(matchState.awayLogoBlobUrl);
-            }
+            URL.revokeObjectURL(matchState.awayLogoBlobUrl);
         }
         
         // Store the data URL
@@ -173,21 +219,17 @@ function processAndDisplayLogo(src, team, displayElement) {
         // Display the logo immediately
         displayElement.innerHTML = `<img src="${dataUrl}" alt="Logo ${team}" style="width: 100%; height: 100%; object-fit: contain;">`;
         
-        // Save to local storage
-        saveLocalData();
-        
-        // Show visual feedback
-        displayElement.style.transform = 'scale(1.05)';
-        setTimeout(() => {
-            displayElement.style.transform = 'scale(1)';
-        }, 200);
-        
-        console.log(`Logo ${team} mis à jour avec succès`);
+        console.log(`Logo ${team} mis à jour avec succès depuis la galerie`);
     };
     
     img.onerror = () => {
         alert('Erreur lors du traitement de l\'image');
     };
+    
+    // Handle CORS for external URLs
+    if (src.startsWith('http')) {
+        img.crossOrigin = 'anonymous';
+    }
     
     img.src = src;
 }
@@ -216,19 +258,11 @@ function initializeScoreControls() {
                 }
                 awayScoreEl.textContent = matchState.awayScore;
             }
-            
-            // Visual feedback
-            btn.style.transform = 'scale(0.95)';
-            setTimeout(() => {
-                btn.style.transform = 'scale(1)';
-            }, 100);
-            
-            saveLocalData();
         });
     });
 }
 
-// Chrono controls - Fixed reset function
+// Chrono controls - Complete reset functionality
 function initializeChronoControls() {
     startBtn.addEventListener('click', startChrono);
     pauseBtn.addEventListener('click', pauseChrono);
@@ -252,7 +286,6 @@ function startChrono() {
         pauseBtn.disabled = false;
         
         updateStatusDisplay();
-        saveLocalData();
     }
 }
 
@@ -268,21 +301,20 @@ function pauseChrono() {
         pauseBtn.disabled = true;
         
         updateStatusDisplay();
-        saveLocalData();
     }
 }
 
 function resetChrono() {
-    // Stop the timer completely
+    // Complete reset as requested
     matchState.isRunning = false;
     
-    // Clear any existing interval
+    // Clear interval completely
     if (matchState.timerInterval) {
         clearInterval(matchState.timerInterval);
         matchState.timerInterval = null;
     }
     
-    // Reset all time-related variables to initial state
+    // Reset all time variables to initial state
     matchState.matchStartTime = null;
     matchState.currentTime = 0;
     matchState.status = 'En attente';
@@ -295,9 +327,8 @@ function resetChrono() {
     pauseBtn.disabled = true;
     
     updateStatusDisplay();
-    saveLocalData();
     
-    console.log('Chrono complètement remis à zéro');
+    console.log('Chrono complètement remis à zéro - 00:00');
 }
 
 function updateChrono() {
@@ -367,26 +398,13 @@ function addEvent(team, eventType) {
     
     matchState.events.push(event);
     updateTimeline();
-    saveLocalData();
-    
-    // Show success feedback
-    const btn = document.querySelector(`[data-team="${team}"][data-event="${eventType}"]`);
-    if (btn) {
-        btn.style.transform = 'scale(0.95)';
-        setTimeout(() => {
-            btn.style.transform = 'scale(1)';
-        }, 150);
-    }
 }
 
 // Timeline
 function initializeTimeline() {
     document.getElementById('clearTimeline').addEventListener('click', () => {
-        if (confirm('Êtes-vous sûr de vouloir vider la timeline ?')) {
-            matchState.events = [];
-            updateTimeline();
-            saveLocalData();
-        }
+        matchState.events = [];
+        updateTimeline();
     });
 }
 
@@ -406,7 +424,7 @@ function updateTimeline() {
     `).join('');
 }
 
-// Export system
+// Export system - Properly handle logos from gallery
 function initializeExport() {
     document.getElementById('generateExport').addEventListener('click', generateExportImage);
     document.getElementById('downloadExport').addEventListener('click', downloadExport);
@@ -550,16 +568,12 @@ function downloadExport() {
 
 function shareToWhatsApp() {
     exportCanvas.toBlob((blob) => {
-        if (navigator.share && navigator.canShare && navigator.canShare({ files: [new File([blob], 'match-score.png', { type: 'image/png' })] })) {
+        if (navigator.share) {
             const file = new File([blob], 'match-score.png', { type: 'image/png' });
             navigator.share({
                 files: [file],
                 title: 'Score du Match',
                 text: 'Voici le score en direct !'
-            }).catch((error) => {
-                console.log('Erreur lors du partage:', error);
-                downloadExport();
-                alert('Partagez l\'image téléchargée sur WhatsApp');
             });
         } else {
             // Fallback: download the image
@@ -569,82 +583,11 @@ function shareToWhatsApp() {
     });
 }
 
-// Local storage functions
-function saveLocalData() {
-    try {
-        const dataToSave = {
-            homeTeam: document.getElementById('homeTeam').value,
-            awayTeam: document.getElementById('awayTeam').value,
-            homeScore: matchState.homeScore,
-            awayScore: matchState.awayScore,
-            homeLogoBlobUrl: matchState.homeLogoBlobUrl,
-            awayLogoBlobUrl: matchState.awayLogoBlobUrl,
-            currentTime: matchState.currentTime,
-            status: matchState.status,
-            events: matchState.events
-        };
-        localStorage.setItem('footballMatch', JSON.stringify(dataToSave));
-    } catch (error) {
-        console.log('Erreur sauvegarde locale:', error);
-    }
-}
-
-function loadLocalData() {
-    try {
-        const savedData = localStorage.getItem('footballMatch');
-        if (savedData) {
-            const data = JSON.parse(savedData);
-            
-            // Restore team names
-            if (data.homeTeam) document.getElementById('homeTeam').value = data.homeTeam;
-            if (data.awayTeam) document.getElementById('awayTeam').value = data.awayTeam;
-            
-            // Restore scores
-            if (data.homeScore !== undefined) {
-                matchState.homeScore = data.homeScore;
-                homeScoreEl.textContent = matchState.homeScore;
-            }
-            if (data.awayScore !== undefined) {
-                matchState.awayScore = data.awayScore;
-                awayScoreEl.textContent = matchState.awayScore;
-            }
-            
-            // Restore logos
-            if (data.homeLogoBlobUrl) {
-                matchState.homeLogoBlobUrl = data.homeLogoBlobUrl;
-                document.getElementById('homeLogo').innerHTML = `<img src="${data.homeLogoBlobUrl}" alt="Logo home" style="width: 100%; height: 100%; object-fit: contain;">`;
-            }
-            if (data.awayLogoBlobUrl) {
-                matchState.awayLogoBlobUrl = data.awayLogoBlobUrl;
-                document.getElementById('awayLogo').innerHTML = `<img src="${data.awayLogoBlobUrl}" alt="Logo away" style="width: 100%; height: 100%; object-fit: contain;">`;
-            }
-            
-            // Restore events
-            if (data.events) {
-                matchState.events = data.events;
-                updateTimeline();
-            }
-            
-            // Restore time (but not running state)
-            if (data.currentTime) {
-                matchState.currentTime = data.currentTime;
-                const minutes = Math.floor(matchState.currentTime / 60000);
-                const seconds = Math.floor((matchState.currentTime % 60000) / 1000);
-                chronoTime.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-            }
-        }
-    } catch (error) {
-        console.log('Erreur chargement données locales:', error);
-    }
-}
-
 // Team name tracking
 document.getElementById('homeTeam').addEventListener('input', (e) => {
     matchState.homeTeam = e.target.value;
-    saveLocalData();
 });
 
 document.getElementById('awayTeam').addEventListener('input', (e) => {
     matchState.awayTeam = e.target.value;
-    saveLocalData();
 });
