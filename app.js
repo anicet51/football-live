@@ -1,569 +1,650 @@
-// Variables globales
-let matchStartTime = null;
-let matchTimer = null;
-let isPaused = false;
-let currentEventType = '';
-let currentTeam = '';
-let homeScore = 0;
-let awayScore = 0;
-let homeGoals = 0;
-let awayGoals = 0;
-let totalYellows = 0;
-let totalReds = 0;
-let events = {
-    home: [],
-    away: []
+// Application state
+let matchState = {
+    homeTeam: '',
+    awayTeam: '',
+    homeScore: 0,
+    awayScore: 0,
+    homeLogoBlobUrl: null,
+    awayLogoBlobUrl: null,
+    matchStartTime: null,
+    currentTime: 0,
+    isRunning: false,
+    status: 'En attente',
+    events: [],
+    timerInterval: null
 };
 
-// Éléments DOM
+// DOM elements
+const tabButtons = document.querySelectorAll('.tab-button');
+const tabContents = document.querySelectorAll('.tab-content');
+const chronoTime = document.getElementById('chronoTime');
+const matchStatus = document.getElementById('matchStatus');
 const startBtn = document.getElementById('startBtn');
 const pauseBtn = document.getElementById('pauseBtn');
 const resetBtn = document.getElementById('resetBtn');
-const matchTime = document.getElementById('matchTime');
-const matchStatus = document.getElementById('matchStatus');
 const homeScoreEl = document.getElementById('homeScore');
 const awayScoreEl = document.getElementById('awayScore');
-const homeEventsEl = document.getElementById('homeEvents');
-const awayEventsEl = document.getElementById('awayEvents');
-const eventModal = document.getElementById('eventModal');
-const eventForm = document.getElementById('eventForm');
-const substitutionDetails = document.getElementById('substitutionDetails');
-const generateVisualBtn = document.getElementById('generateVisualBtn');
-const downloadImageBtn = document.getElementById('downloadImageBtn');
-const matchCanvas = document.getElementById('matchCanvas');
-const canvasPreview = document.getElementById('canvasPreview');
+const eventsList = document.getElementById('eventsList');
+const exportCanvas = document.getElementById('exportCanvas');
 
-// Initialisation des event listeners
+// Initialize application
 document.addEventListener('DOMContentLoaded', function() {
-    initializeEventListeners();
-    initializeTabNavigation();
-    updateDisplay();
-    renderEvents();
-    renderTimeline();
+    initializeTabs();
+    initializeScoreControls();
+    initializeChronoControls();
+    initializeEventButtons();
+    initializeLogoUploads();
+    initializeExport();
+    initializeTimeline();
+    loadLocalData();
 });
 
-function initializeEventListeners() {
-    startBtn.addEventListener('click', startMatch);
-    pauseBtn.addEventListener('click', pauseMatch);
-    resetBtn.addEventListener('click', resetMatch);
-    eventForm.addEventListener('submit', handleEventSubmission);
-    generateVisualBtn.addEventListener('click', generateMatchVisual);
-    downloadImageBtn.addEventListener('click', downloadMatchImage);
+// Tab system
+function initializeTabs() {
+    tabButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            const tabId = button.dataset.tab;
+            
+            // Update active states
+            tabButtons.forEach(btn => btn.classList.remove('active'));
+            tabContents.forEach(content => content.classList.remove('active'));
+            
+            button.classList.add('active');
+            document.getElementById(tabId).classList.add('active');
+        });
+    });
+}
+
+// Logo upload system - Mobile-only file upload - Fixed version
+function initializeLogoUploads() {
+    const homeLogoFile = document.getElementById('homeLogoFile');
+    const homeLogoDisplay = document.getElementById('homeLogo');
+    const awayLogoFile = document.getElementById('awayLogoFile');
+    const awayLogoDisplay = document.getElementById('awayLogo');
+
+    // Make sure the file inputs are properly set up
+    console.log('Logo inputs found:', homeLogoFile, awayLogoFile);
+
+    // Direct event listeners on file inputs
+    homeLogoFile.addEventListener('change', (e) => {
+        console.log('Home logo file changed:', e.target.files);
+        if (e.target.files && e.target.files[0]) {
+            handleLogoFileUpload(e.target.files[0], 'home', homeLogoDisplay);
+        }
+    });
+
+    awayLogoFile.addEventListener('change', (e) => {
+        console.log('Away logo file changed:', e.target.files);
+        if (e.target.files && e.target.files[0]) {
+            handleLogoFileUpload(e.target.files[0], 'away', awayLogoDisplay);
+        }
+    });
+
+    // Also add click handlers to the labels as backup
+    const homeLabel = document.querySelector('label[for="homeLogoFile"]');
+    const awayLabel = document.querySelector('label[for="awayLogoFile"]');
+
+    if (homeLabel) {
+        homeLabel.addEventListener('click', (e) => {
+            console.log('Home logo label clicked');
+            e.preventDefault();
+            homeLogoFile.click();
+        });
+    }
+
+    if (awayLabel) {
+        awayLabel.addEventListener('click', (e) => {
+            console.log('Away logo label clicked');
+            e.preventDefault();
+            awayLogoFile.click();
+        });
+    }
+}
+
+function handleLogoFileUpload(file, team, displayElement) {
+    console.log('Processing logo file:', file.name, 'for team:', team);
     
-    // Gestion de la fermeture du modal en cliquant à l'extérieur
-    eventModal.addEventListener('click', function(e) {
-        if (e.target === eventModal) {
-            closeModal();
+    if (!file || !file.type.startsWith('image/')) {
+        alert('Veuillez sélectionner un fichier image valide');
+        return;
+    }
+
+    // Check file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+        alert('L\'image est trop volumineuse. Veuillez choisir une image de moins de 5MB.');
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        processAndDisplayLogo(e.target.result, team, displayElement);
+    };
+    reader.onerror = () => {
+        alert('Erreur lors de la lecture du fichier');
+    };
+    reader.readAsDataURL(file);
+}
+
+function processAndDisplayLogo(src, team, displayElement) {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+    
+    img.onload = () => {
+        // Set canvas size to 80x80 for better mobile display
+        canvas.width = 80;
+        canvas.height = 80;
+        
+        // Clear canvas with white background
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, 80, 80);
+        
+        // Calculate dimensions to fit image while maintaining aspect ratio
+        const scale = Math.min(80 / img.width, 80 / img.height);
+        const width = img.width * scale;
+        const height = img.height * scale;
+        const x = (80 - width) / 2;
+        const y = (80 - height) / 2;
+        
+        // Draw the image
+        ctx.drawImage(img, x, y, width, height);
+        
+        // Convert to data URL for storage
+        const dataUrl = canvas.toDataURL('image/png', 0.8);
+        
+        // Clean up previous blob URL if exists
+        if (team === 'home' && matchState.homeLogoBlobUrl) {
+            if (matchState.homeLogoBlobUrl.startsWith('blob:')) {
+                URL.revokeObjectURL(matchState.homeLogoBlobUrl);
+            }
+        } else if (team === 'away' && matchState.awayLogoBlobUrl) {
+            if (matchState.awayLogoBlobUrl.startsWith('blob:')) {
+                URL.revokeObjectURL(matchState.awayLogoBlobUrl);
+            }
+        }
+        
+        // Store the data URL
+        if (team === 'home') {
+            matchState.homeLogoBlobUrl = dataUrl;
+        } else {
+            matchState.awayLogoBlobUrl = dataUrl;
+        }
+        
+        // Display the logo immediately
+        displayElement.innerHTML = `<img src="${dataUrl}" alt="Logo ${team}" style="width: 100%; height: 100%; object-fit: contain;">`;
+        
+        // Save to local storage
+        saveLocalData();
+        
+        // Show visual feedback
+        displayElement.style.transform = 'scale(1.05)';
+        setTimeout(() => {
+            displayElement.style.transform = 'scale(1)';
+        }, 200);
+        
+        console.log(`Logo ${team} mis à jour avec succès`);
+    };
+    
+    img.onerror = () => {
+        alert('Erreur lors du traitement de l\'image');
+    };
+    
+    img.src = src;
+}
+
+// Score controls
+function initializeScoreControls() {
+    const scoreButtons = document.querySelectorAll('.score-btn');
+    
+    scoreButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const team = btn.dataset.team;
+            const action = btn.dataset.action;
+            
+            if (team === 'home') {
+                if (action === 'plus') {
+                    matchState.homeScore++;
+                } else if (action === 'minus' && matchState.homeScore > 0) {
+                    matchState.homeScore--;
+                }
+                homeScoreEl.textContent = matchState.homeScore;
+            } else {
+                if (action === 'plus') {
+                    matchState.awayScore++;
+                } else if (action === 'minus' && matchState.awayScore > 0) {
+                    matchState.awayScore--;
+                }
+                awayScoreEl.textContent = matchState.awayScore;
+            }
+            
+            // Visual feedback
+            btn.style.transform = 'scale(0.95)';
+            setTimeout(() => {
+                btn.style.transform = 'scale(1)';
+            }, 100);
+            
+            saveLocalData();
+        });
+    });
+}
+
+// Chrono controls - Fixed reset function
+function initializeChronoControls() {
+    startBtn.addEventListener('click', startChrono);
+    pauseBtn.addEventListener('click', pauseChrono);
+    resetBtn.addEventListener('click', resetChrono);
+}
+
+function startChrono() {
+    if (!matchState.isRunning) {
+        if (matchState.matchStartTime === null) {
+            matchState.matchStartTime = Date.now() - matchState.currentTime;
+        } else {
+            matchState.matchStartTime = Date.now() - matchState.currentTime;
+        }
+        
+        matchState.isRunning = true;
+        matchState.status = 'En cours';
+        
+        matchState.timerInterval = setInterval(updateChrono, 1000);
+        
+        startBtn.disabled = true;
+        pauseBtn.disabled = false;
+        
+        updateStatusDisplay();
+        saveLocalData();
+    }
+}
+
+function pauseChrono() {
+    if (matchState.isRunning) {
+        matchState.isRunning = false;
+        matchState.status = 'En pause';
+        
+        clearInterval(matchState.timerInterval);
+        matchState.timerInterval = null;
+        
+        startBtn.disabled = false;
+        pauseBtn.disabled = true;
+        
+        updateStatusDisplay();
+        saveLocalData();
+    }
+}
+
+function resetChrono() {
+    // Stop the timer completely
+    matchState.isRunning = false;
+    
+    // Clear any existing interval
+    if (matchState.timerInterval) {
+        clearInterval(matchState.timerInterval);
+        matchState.timerInterval = null;
+    }
+    
+    // Reset all time-related variables to initial state
+    matchState.matchStartTime = null;
+    matchState.currentTime = 0;
+    matchState.status = 'En attente';
+    
+    // Reset display to 00:00
+    chronoTime.textContent = '00:00';
+    
+    // Reset button states to initial state
+    startBtn.disabled = false;
+    pauseBtn.disabled = true;
+    
+    updateStatusDisplay();
+    saveLocalData();
+    
+    console.log('Chrono complètement remis à zéro');
+}
+
+function updateChrono() {
+    if (matchState.isRunning && matchState.matchStartTime) {
+        matchState.currentTime = Date.now() - matchState.matchStartTime;
+        const minutes = Math.floor(matchState.currentTime / 60000);
+        const seconds = Math.floor((matchState.currentTime % 60000) / 1000);
+        chronoTime.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    }
+}
+
+function updateStatusDisplay() {
+    matchStatus.textContent = matchState.status;
+    matchStatus.className = 'status';
+    
+    if (matchState.status === 'En cours') {
+        matchStatus.classList.add('status--playing');
+    } else if (matchState.status === 'En pause') {
+        matchStatus.classList.add('status--paused');
+    } else {
+        matchStatus.classList.add('status--info');
+    }
+}
+
+// Event system
+function initializeEventButtons() {
+    const eventButtons = document.querySelectorAll('.event-btn');
+    
+    eventButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const team = btn.dataset.team;
+            const eventType = btn.dataset.event;
+            addEvent(team, eventType);
+        });
+    });
+}
+
+function addEvent(team, eventType) {
+    const currentMinute = Math.floor(matchState.currentTime / 60000);
+    const teamName = team === 'home' ? 
+        (document.getElementById('homeTeam').value || 'Domicile') : 
+        (document.getElementById('awayTeam').value || 'Visiteur');
+    
+    const eventIcons = {
+        goal: '⚽',
+        yellow: '🟡',
+        red: '🟥',
+        substitution: '🔄'
+    };
+    
+    const eventNames = {
+        goal: 'But',
+        yellow: 'Carton jaune',
+        red: 'Carton rouge',
+        substitution: 'Remplacement'
+    };
+    
+    const event = {
+        time: currentMinute,
+        team: team,
+        teamName: teamName,
+        type: eventType,
+        icon: eventIcons[eventType],
+        name: eventNames[eventType],
+        timestamp: Date.now()
+    };
+    
+    matchState.events.push(event);
+    updateTimeline();
+    saveLocalData();
+    
+    // Show success feedback
+    const btn = document.querySelector(`[data-team="${team}"][data-event="${eventType}"]`);
+    if (btn) {
+        btn.style.transform = 'scale(0.95)';
+        setTimeout(() => {
+            btn.style.transform = 'scale(1)';
+        }, 150);
+    }
+}
+
+// Timeline
+function initializeTimeline() {
+    document.getElementById('clearTimeline').addEventListener('click', () => {
+        if (confirm('Êtes-vous sûr de vouloir vider la timeline ?')) {
+            matchState.events = [];
+            updateTimeline();
+            saveLocalData();
         }
     });
 }
 
-function initializeTabNavigation() {
-    const tabBtns = document.querySelectorAll('.tab-btn');
-    const tabContents = document.querySelectorAll('.tab-content');
-    
-    tabBtns.forEach(btn => {
-        btn.addEventListener('click', function() {
-            const targetTab = this.getAttribute('data-tab');
-            
-            // Retirer la classe active de tous les boutons et contenus
-            tabBtns.forEach(b => b.classList.remove('active'));
-            tabContents.forEach(content => {
-                content.classList.add('hidden');
-                content.classList.remove('active');
-            });
-            
-            // Activer le bouton et le contenu sélectionnés
-            this.classList.add('active');
-            const targetContent = document.getElementById(targetTab + 'Tab');
-            if (targetContent) {
-                targetContent.classList.remove('hidden');
-                targetContent.classList.add('active');
-            }
-            
-            // Mettre à jour la timeline si on bascule dessus
-            if (targetTab === 'timeline') {
-                renderTimeline();
-            }
-        });
-    });
-}
-
-// Gestion du chronomètre
-function startMatch() {
-    if (!matchStartTime) {
-        matchStartTime = Date.now();
-    } else if (isPaused) {
-        matchStartTime = Date.now() - (matchStartTime - matchStartTime);
-    }
-    
-    isPaused = false;
-    matchTimer = setInterval(updateTimer, 1000);
-    
-    startBtn.disabled = true;
-    pauseBtn.disabled = false;
-    matchStatus.textContent = 'En cours';
-    matchStatus.style.color = 'var(--color-success)';
-}
-
-function pauseMatch() {
-    clearInterval(matchTimer);
-    isPaused = true;
-    
-    startBtn.disabled = false;
-    pauseBtn.disabled = true;
-    matchStatus.textContent = 'Pause';
-    matchStatus.style.color = 'var(--color-warning)';
-}
-
-function resetMatch() {
-    clearInterval(matchTimer);
-    matchStartTime = null;
-    isPaused = false;
-    
-    // Reset des scores et statistiques
-    homeScore = 0;
-    awayScore = 0;
-    homeGoals = 0;
-    awayGoals = 0;
-    totalYellows = 0;
-    totalReds = 0;
-    
-    // Reset des événements
-    events.home = [];
-    events.away = [];
-    
-    // Reset de l'interface
-    startBtn.disabled = false;
-    pauseBtn.disabled = true;
-    matchStatus.textContent = 'En attente';
-    matchStatus.style.color = 'var(--color-text-secondary)';
-    
-    // Reset des noms d'équipes
-    document.getElementById('homeTeamName').value = '';
-    document.getElementById('awayTeamName').value = '';
-    
-    // Reset du canvas d'export
-    downloadImageBtn.disabled = true;
-    canvasPreview.innerHTML = '<p>Cliquez sur "Générer le Visuel" pour créer l\'image</p>';
-    canvasPreview.classList.remove('has-image');
-    
-    updateDisplay();
-    renderEvents();
-    renderTimeline();
-}
-
-function updateTimer() {
-    if (!matchStartTime || isPaused) return;
-    
-    const elapsed = Date.now() - matchStartTime;
-    const minutes = Math.floor(elapsed / 60000);
-    const seconds = Math.floor((elapsed % 60000) / 1000);
-    
-    matchTime.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-}
-
-function getCurrentMatchTime() {
-    if (!matchStartTime) return 1;
-    const elapsed = Date.now() - matchStartTime;
-    return Math.max(1, Math.floor(elapsed / 60000));
-}
-
-// Gestion des événements
-function addEvent(team, eventType) {
-    currentTeam = team;
-    currentEventType = eventType;
-    
-    // Pré-remplir le temps avec le temps actuel du match
-    document.getElementById('eventTime').value = getCurrentMatchTime();
-    
-    // Afficher/masquer les détails de remplacement
-    if (eventType === 'substitution') {
-        substitutionDetails.classList.remove('hidden');
-        document.getElementById('playerOut').required = true;
-        document.getElementById('playerIn').required = true;
-    } else {
-        substitutionDetails.classList.add('hidden');
-        document.getElementById('playerOut').required = false;
-        document.getElementById('playerIn').required = false;
-    }
-    
-    // Ouvrir le modal
-    eventModal.classList.remove('hidden');
-    document.getElementById('playerName').focus();
-}
-
-function handleEventSubmission(e) {
-    e.preventDefault();
-    
-    const playerName = document.getElementById('playerName').value;
-    const eventTime = document.getElementById('eventTime').value;
-    const playerOut = document.getElementById('playerOut').value;
-    const playerIn = document.getElementById('playerIn').value;
-    
-    const eventData = {
-        type: currentEventType,
-        player: playerName,
-        time: parseInt(eventTime),
-        timestamp: Date.now()
-    };
-    
-    if (currentEventType === 'substitution') {
-        eventData.playerOut = playerOut;
-        eventData.playerIn = playerIn;
-        eventData.player = `${playerOut} ↔ ${playerIn}`;
-    }
-    
-    // Ajouter l'événement à la liste appropriée
-    events[currentTeam].push(eventData);
-    
-    // Mettre à jour les scores et statistiques
-    updateScoresAndStats(currentTeam, currentEventType);
-    
-    // Mettre à jour l'affichage
-    updateDisplay();
-    renderEvents();
-    renderTimeline();
-    
-    // Fermer le modal et réinitialiser le formulaire
-    closeModal();
-    eventForm.reset();
-}
-
-function updateScoresAndStats(team, eventType) {
-    switch (eventType) {
-        case 'goal':
-            if (team === 'home') {
-                homeScore++;
-                homeGoals++;
-            } else {
-                awayScore++;
-                awayGoals++;
-            }
-            break;
-        case 'yellow':
-            totalYellows++;
-            break;
-        case 'red':
-            totalReds++;
-            break;
-    }
-}
-
-function updateDisplay() {
-    homeScoreEl.textContent = homeScore;
-    awayScoreEl.textContent = awayScore;
-    document.getElementById('homeGoals').textContent = homeGoals;
-    document.getElementById('awayGoals').textContent = awayGoals;
-    document.getElementById('totalYellows').textContent = totalYellows;
-    document.getElementById('totalReds').textContent = totalReds;
-}
-
-function renderEvents() {
-    // Effacer les listes existantes
-    homeEventsEl.innerHTML = '';
-    awayEventsEl.innerHTML = '';
-    
-    // Trier les événements par temps (plus récent en premier)
-    const sortedHomeEvents = [...events.home].sort((a, b) => b.time - a.time);
-    const sortedAwayEvents = [...events.away].sort((a, b) => b.time - a.time);
-    
-    // Rendre les événements domicile
-    sortedHomeEvents.forEach(event => {
-        homeEventsEl.appendChild(createEventElement(event));
-    });
-    
-    // Rendre les événements visiteur
-    sortedAwayEvents.forEach(event => {
-        awayEventsEl.appendChild(createEventElement(event));
-    });
-    
-    // Afficher un message si aucun événement
-    if (sortedHomeEvents.length === 0) {
-        homeEventsEl.innerHTML = '<p style="text-align: center; color: var(--color-text-secondary); margin: var(--space-16) 0;">Aucun événement</p>';
-    }
-    
-    if (sortedAwayEvents.length === 0) {
-        awayEventsEl.innerHTML = '<p style="text-align: center; color: var(--color-text-secondary); margin: var(--space-16) 0;">Aucun événement</p>';
-    }
-}
-
-function renderTimeline() {
-    const timelineEvents = document.getElementById('timelineEvents');
-    timelineEvents.innerHTML = '';
-    
-    // Combiner tous les événements et les trier par temps
-    const allEvents = [];
-    
-    events.home.forEach(event => {
-        allEvents.push({...event, team: 'home'});
-    });
-    
-    events.away.forEach(event => {
-        allEvents.push({...event, team: 'away'});
-    });
-    
-    allEvents.sort((a, b) => a.time - b.time);
-    
-    if (allEvents.length === 0) {
-        timelineEvents.innerHTML = '<p style="text-align: center; color: var(--color-text-secondary); padding: var(--space-24);">Aucun événement à afficher</p>';
+function updateTimeline() {
+    if (matchState.events.length === 0) {
+        eventsList.innerHTML = '<p class="no-events">Aucun événement pour le moment</p>';
         return;
     }
     
-    allEvents.forEach(event => {
-        const timelineItem = document.createElement('div');
-        timelineItem.className = 'timeline-event';
+    const sortedEvents = [...matchState.events].sort((a, b) => b.timestamp - a.timestamp);
+    
+    eventsList.innerHTML = sortedEvents.map(event => `
+        <div class="timeline-event ${event.team}">
+            <span class="timeline-time">${event.time}'</span>
+            <span class="timeline-description">${event.icon} ${event.name} - ${event.teamName}</span>
+        </div>
+    `).join('');
+}
+
+// Export system
+function initializeExport() {
+    document.getElementById('generateExport').addEventListener('click', generateExportImage);
+    document.getElementById('downloadExport').addEventListener('click', downloadExport);
+    document.getElementById('shareWhatsApp').addEventListener('click', shareToWhatsApp);
+}
+
+function generateExportImage() {
+    const canvas = exportCanvas;
+    const ctx = canvas.getContext('2d');
+    
+    // Set canvas size
+    canvas.width = 400;
+    canvas.height = 300;
+    
+    // Clear canvas and set background
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Draw header
+    ctx.fillStyle = '#1f2121';
+    ctx.font = 'bold 20px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('⚽ Match Live Score', canvas.width / 2, 30);
+    
+    // Get team names
+    const homeTeamName = document.getElementById('homeTeam').value || 'Domicile';
+    const awayTeamName = document.getElementById('awayTeam').value || 'Visiteur';
+    
+    // Draw team info
+    const teamY = 80;
+    const logoSize = 48;
+    
+    let loadedImages = 0;
+    const totalImages = 2;
+    
+    function checkAllLoaded() {
+        loadedImages++;
+        if (loadedImages >= totalImages) {
+            finishDrawing();
+        }
+    }
+    
+    // Home team logo
+    if (matchState.homeLogoBlobUrl) {
+        const homeImg = new Image();
+        homeImg.onload = () => {
+            ctx.drawImage(homeImg, 50, teamY, logoSize, logoSize);
+            checkAllLoaded();
+        };
+        homeImg.onerror = () => {
+            drawDefaultHomeLogo();
+            checkAllLoaded();
+        };
+        homeImg.src = matchState.homeLogoBlobUrl;
+    } else {
+        drawDefaultHomeLogo();
+        checkAllLoaded();
+    }
+    
+    // Away team logo
+    if (matchState.awayLogoBlobUrl) {
+        const awayImg = new Image();
+        awayImg.onload = () => {
+            ctx.drawImage(awayImg, canvas.width - 50 - logoSize, teamY, logoSize, logoSize);
+            checkAllLoaded();
+        };
+        awayImg.onerror = () => {
+            drawDefaultAwayLogo();
+            checkAllLoaded();
+        };
+        awayImg.src = matchState.awayLogoBlobUrl;
+    } else {
+        drawDefaultAwayLogo();
+        checkAllLoaded();
+    }
+    
+    function drawDefaultHomeLogo() {
+        ctx.fillStyle = '#f0f0f0';
+        ctx.fillRect(50, teamY, logoSize, logoSize);
+        ctx.fillStyle = '#666';
+        ctx.font = '24px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('🏠', 50 + logoSize/2, teamY + logoSize/2 + 8);
+    }
+    
+    function drawDefaultAwayLogo() {
+        ctx.fillStyle = '#f0f0f0';
+        ctx.fillRect(canvas.width - 50 - logoSize, teamY, logoSize, logoSize);
+        ctx.fillStyle = '#666';
+        ctx.font = '24px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('✈️', canvas.width - 50 - logoSize/2, teamY + logoSize/2 + 8);
+    }
+    
+    function finishDrawing() {
+        // Team names
+        ctx.fillStyle = '#1f2121';
+        ctx.font = '16px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(homeTeamName, 74, teamY + logoSize + 20);
+        ctx.fillText(awayTeamName, canvas.width - 74, teamY + logoSize + 20);
         
-        const homeTeamName = document.getElementById('homeTeamName').value || 'Équipe Domicile';
-        const awayTeamName = document.getElementById('awayTeamName').value || 'Équipe Visiteur';
-        const teamName = event.team === 'home' ? homeTeamName : awayTeamName;
+        // Score
+        ctx.fillStyle = '#21808d';
+        ctx.font = 'bold 36px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(`${matchState.homeScore} - ${matchState.awayScore}`, canvas.width / 2, 120);
         
-        timelineItem.innerHTML = `
-            <div class="timeline-time">${event.time}'</div>
-            <div class="timeline-content">
-                <div class="timeline-team">${teamName}</div>
-                <div class="timeline-description">
-                    ${getEventIcon(event.type)} ${getEventTypeText(event.type)} - ${event.player}
-                    ${event.type === 'substitution' && event.playerOut && event.playerIn ? 
-                        `<br><small>Sortie: ${event.playerOut}, Entrée: ${event.playerIn}</small>` : ''}
-                </div>
-            </div>
-        `;
+        // Time and status
+        ctx.fillStyle = '#626c71';
+        ctx.font = '18px Arial';
+        ctx.fillText(chronoTime.textContent, canvas.width / 2, 150);
+        ctx.fillText(matchState.status, canvas.width / 2, 175);
         
-        timelineEvents.appendChild(timelineItem);
+        // Recent events
+        if (matchState.events.length > 0) {
+            ctx.fillStyle = '#1f2121';
+            ctx.font = 'bold 14px Arial';
+            ctx.fillText('Derniers événements:', canvas.width / 2, 210);
+            
+            const recentEvents = [...matchState.events].slice(-3).reverse();
+            recentEvents.forEach((event, index) => {
+                ctx.font = '12px Arial';
+                ctx.fillText(`${event.time}' ${event.icon} ${event.name} - ${event.teamName}`, 
+                    canvas.width / 2, 230 + (index * 18));
+            });
+        }
+        
+        // Show download and share buttons
+        document.getElementById('downloadExport').style.display = 'block';
+        document.getElementById('shareWhatsApp').style.display = 'block';
+    }
+}
+
+function downloadExport() {
+    const link = document.createElement('a');
+    link.download = 'match-score.png';
+    link.href = exportCanvas.toDataURL();
+    link.click();
+}
+
+function shareToWhatsApp() {
+    exportCanvas.toBlob((blob) => {
+        if (navigator.share && navigator.canShare && navigator.canShare({ files: [new File([blob], 'match-score.png', { type: 'image/png' })] })) {
+            const file = new File([blob], 'match-score.png', { type: 'image/png' });
+            navigator.share({
+                files: [file],
+                title: 'Score du Match',
+                text: 'Voici le score en direct !'
+            }).catch((error) => {
+                console.log('Erreur lors du partage:', error);
+                downloadExport();
+                alert('Partagez l\'image téléchargée sur WhatsApp');
+            });
+        } else {
+            // Fallback: download the image
+            downloadExport();
+            alert('Partagez l\'image téléchargée sur WhatsApp');
+        }
     });
 }
 
-function createEventElement(event) {
-    const eventDiv = document.createElement('div');
-    eventDiv.className = 'event-item';
-    
-    const eventIcon = getEventIcon(event.type);
-    const eventTypeText = getEventTypeText(event.type);
-    
-    let eventContent = `
-        <div class="event-header">
-            <span class="event-type">${eventIcon} ${eventTypeText}</span>
-            <span class="event-time">${event.time}'</span>
-        </div>
-        <div class="event-player">${event.player}</div>
-    `;
-    
-    if (event.type === 'substitution' && event.playerOut && event.playerIn) {
-        eventContent += `
-            <div class="event-details">
-                Sortie: ${event.playerOut}<br>
-                Entrée: ${event.playerIn}
-            </div>
-        `;
+// Local storage functions
+function saveLocalData() {
+    try {
+        const dataToSave = {
+            homeTeam: document.getElementById('homeTeam').value,
+            awayTeam: document.getElementById('awayTeam').value,
+            homeScore: matchState.homeScore,
+            awayScore: matchState.awayScore,
+            homeLogoBlobUrl: matchState.homeLogoBlobUrl,
+            awayLogoBlobUrl: matchState.awayLogoBlobUrl,
+            currentTime: matchState.currentTime,
+            status: matchState.status,
+            events: matchState.events
+        };
+        localStorage.setItem('footballMatch', JSON.stringify(dataToSave));
+    } catch (error) {
+        console.log('Erreur sauvegarde locale:', error);
     }
-    
-    eventDiv.innerHTML = eventContent;
-    return eventDiv;
 }
 
-function getEventIcon(eventType) {
-    const icons = {
-        goal: '⚽',
-        yellow: '🟨',
-        red: '🟥',
-        substitution: '🔄'
-    };
-    return icons[eventType] || '📝';
-}
-
-function getEventTypeText(eventType) {
-    const texts = {
-        goal: 'But',
-        yellow: 'Carton Jaune',
-        red: 'Carton Rouge',
-        substitution: 'Remplacement'
-    };
-    return texts[eventType] || 'Événement';
-}
-
-function closeModal() {
-    eventModal.classList.add('hidden');
-    eventForm.reset();
-    substitutionDetails.classList.add('hidden');
-}
-
-// Fonctions d'export pour WhatsApp
-function generateMatchVisual() {
-    const canvas = matchCanvas;
-    const ctx = canvas.getContext('2d');
-    
-    // Dimensions du canvas
-    canvas.width = 800;
-    canvas.height = 1000;
-    
-    // Couleurs
-    const bgColor = '#f5f5f5';
-    const primaryColor = '#218d8d';
-    const textColor = '#134252';
-    const cardBgColor = '#ffffff';
-    
-    // Fond
-    ctx.fillStyle = bgColor;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
-    // Titre
-    ctx.fillStyle = textColor;
-    ctx.font = 'bold 32px Arial, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('Match de Football', canvas.width / 2, 60);
-    
-    // Noms des équipes et scores
-    const homeTeamName = document.getElementById('homeTeamName').value || 'Équipe Domicile';
-    const awayTeamName = document.getElementById('awayTeamName').value || 'Équipe Visiteur';
-    
-    // Fond du score
-    ctx.fillStyle = cardBgColor;
-    ctx.fillRect(50, 100, canvas.width - 100, 120);
-    ctx.strokeStyle = '#e5e5e5';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(50, 100, canvas.width - 100, 120);
-    
-    // Équipe domicile
-    ctx.fillStyle = textColor;
-    ctx.font = 'bold 24px Arial, sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillText(homeTeamName, 80, 140);
-    
-    // Score domicile
-    ctx.fillStyle = primaryColor;
-    ctx.font = 'bold 48px Arial, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(homeScore.toString(), canvas.width / 2 - 60, 175);
-    
-    // Séparateur
-    ctx.fillStyle = textColor;
-    ctx.font = 'bold 36px Arial, sans-serif';
-    ctx.fillText('-', canvas.width / 2, 175);
-    
-    // Score visiteur
-    ctx.fillStyle = primaryColor;
-    ctx.font = 'bold 48px Arial, sans-serif';
-    ctx.fillText(awayScore.toString(), canvas.width / 2 + 60, 175);
-    
-    // Équipe visiteur
-    ctx.fillStyle = textColor;
-    ctx.font = 'bold 24px Arial, sans-serif';
-    ctx.textAlign = 'right';
-    ctx.fillText(awayTeamName, canvas.width - 80, 140);
-    
-    // Temps de match
-    ctx.fillStyle = textColor;
-    ctx.font = '20px Arial, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(matchTime.textContent, canvas.width / 2, 200);
-    
-    // Événements
-    let yOffset = 280;
-    
-    // Titre des événements
-    ctx.fillStyle = textColor;
-    ctx.font = 'bold 28px Arial, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('Événements du Match', canvas.width / 2, yOffset);
-    yOffset += 40;
-    
-    // Combiner et trier tous les événements
-    const allEvents = [];
-    events.home.forEach(event => allEvents.push({...event, team: 'home'}));
-    events.away.forEach(event => allEvents.push({...event, team: 'away'}));
-    allEvents.sort((a, b) => a.time - b.time);
-    
-    if (allEvents.length === 0) {
-        ctx.fillStyle = '#888';
-        ctx.font = '18px Arial, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('Aucun événement enregistré', canvas.width / 2, yOffset + 30);
-    } else {
-        allEvents.forEach((event, index) => {
-            if (yOffset > canvas.height - 100) return; // Éviter de dépasser
+function loadLocalData() {
+    try {
+        const savedData = localStorage.getItem('footballMatch');
+        if (savedData) {
+            const data = JSON.parse(savedData);
             
-            // Fond de l'événement
-            ctx.fillStyle = '#f8f9fa';
-            ctx.fillRect(60, yOffset, canvas.width - 120, 60);
-            ctx.strokeStyle = '#e9ecef';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(60, yOffset, canvas.width - 120, 60);
+            // Restore team names
+            if (data.homeTeam) document.getElementById('homeTeam').value = data.homeTeam;
+            if (data.awayTeam) document.getElementById('awayTeam').value = data.awayTeam;
             
-            // Temps de l'événement
-            ctx.fillStyle = primaryColor;
-            ctx.font = 'bold 16px Arial, sans-serif';
-            ctx.textAlign = 'left';
-            ctx.fillText(`${event.time}'`, 80, yOffset + 25);
+            // Restore scores
+            if (data.homeScore !== undefined) {
+                matchState.homeScore = data.homeScore;
+                homeScoreEl.textContent = matchState.homeScore;
+            }
+            if (data.awayScore !== undefined) {
+                matchState.awayScore = data.awayScore;
+                awayScoreEl.textContent = matchState.awayScore;
+            }
             
-            // Équipe
-            const teamName = event.team === 'home' ? homeTeamName : awayTeamName;
-            ctx.fillStyle = textColor;
-            ctx.font = 'bold 16px Arial, sans-serif';
-            ctx.fillText(teamName, 140, yOffset + 25);
+            // Restore logos
+            if (data.homeLogoBlobUrl) {
+                matchState.homeLogoBlobUrl = data.homeLogoBlobUrl;
+                document.getElementById('homeLogo').innerHTML = `<img src="${data.homeLogoBlobUrl}" alt="Logo home" style="width: 100%; height: 100%; object-fit: contain;">`;
+            }
+            if (data.awayLogoBlobUrl) {
+                matchState.awayLogoBlobUrl = data.awayLogoBlobUrl;
+                document.getElementById('awayLogo').innerHTML = `<img src="${data.awayLogoBlobUrl}" alt="Logo away" style="width: 100%; height: 100%; object-fit: contain;">`;
+            }
             
-            // Type d'événement et joueur
-            ctx.fillStyle = '#666';
-            ctx.font = '14px Arial, sans-serif';
-            ctx.fillText(`${getEventIcon(event.type)} ${getEventTypeText(event.type)} - ${event.player}`, 80, yOffset + 45);
+            // Restore events
+            if (data.events) {
+                matchState.events = data.events;
+                updateTimeline();
+            }
             
-            yOffset += 70;
-        });
+            // Restore time (but not running state)
+            if (data.currentTime) {
+                matchState.currentTime = data.currentTime;
+                const minutes = Math.floor(matchState.currentTime / 60000);
+                const seconds = Math.floor((matchState.currentTime % 60000) / 1000);
+                chronoTime.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            }
+        }
+    } catch (error) {
+        console.log('Erreur chargement données locales:', error);
     }
-    
-    // Statistiques finales
-    yOffset += 20;
-    if (yOffset < canvas.height - 150) {
-        ctx.fillStyle = cardBgColor;
-        ctx.fillRect(50, yOffset, canvas.width - 100, 100);
-        ctx.strokeStyle = '#e5e5e5';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(50, yOffset, canvas.width - 100, 100);
-        
-        ctx.fillStyle = textColor;
-        ctx.font = 'bold 20px Arial, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('Statistiques', canvas.width / 2, yOffset + 30);
-        
-        ctx.font = '16px Arial, sans-serif';
-        ctx.textAlign = 'left';
-        ctx.fillText(`Buts: ${homeGoals} - ${awayGoals}`, 80, yOffset + 55);
-        ctx.fillText(`Cartons: ${totalYellows} jaunes, ${totalReds} rouges`, 80, yOffset + 75);
-    }
-    
-    // Convertir en image et afficher
-    const imageData = canvas.toDataURL('image/png');
-    canvasPreview.innerHTML = `<img src="${imageData}" alt="Visuel du match">`;
-    canvasPreview.classList.add('has-image');
-    downloadImageBtn.disabled = false;
 }
 
-function downloadMatchImage() {
-    const canvas = matchCanvas;
-    const homeTeamName = document.getElementById('homeTeamName').value || 'Equipe_Domicile';
-    const awayTeamName = document.getElementById('awayTeamName').value || 'Equipe_Visiteur';
-    const fileName = `Match_${homeTeamName}_vs_${awayTeamName}_${homeScore}-${awayScore}.png`;
-    
-    // Créer un lien de téléchargement
-    const link = document.createElement('a');
-    link.download = fileName;
-    link.href = canvas.toDataURL('image/png');
-    
-    // Déclencher le téléchargement
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-}
+// Team name tracking
+document.getElementById('homeTeam').addEventListener('input', (e) => {
+    matchState.homeTeam = e.target.value;
+    saveLocalData();
+});
 
-// Fonctions utilitaires
-function formatTime(timestamp) {
-    const date = new Date(timestamp);
-    return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
-}
-
-// Gestion du clavier pour le modal
-document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape' && !eventModal.classList.contains('hidden')) {
-        closeModal();
-    }
+document.getElementById('awayTeam').addEventListener('input', (e) => {
+    matchState.awayTeam = e.target.value;
+    saveLocalData();
 });
